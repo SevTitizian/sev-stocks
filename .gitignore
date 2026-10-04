@@ -1,0 +1,4 @@
+.venv/
+__pycache__/
+last_good.csv
+.DS_Store
