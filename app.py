@@ -8,6 +8,7 @@ Run with:  ./run.sh
 """
 
 import io
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -72,18 +73,25 @@ def largest_us_stocks() -> pd.DataFrame:
 def top_by_market_cap() -> tuple[pd.DataFrame, str | None]:
     """The 50 largest S&P 500 members. If Yahoo can't be reached, falls back
     to the last successful result and returns a warning saying so."""
-    try:
-        ranked = load_constituents().merge(largest_us_stocks(), on="Ticker")
-    except Exception:
+    error = None
+    for attempt in range(3):
+        try:
+            ranked = load_constituents().merge(largest_us_stocks(), on="Ticker")
+            break
+        except Exception as e:
+            # Yahoo and Wikipedia sometimes refuse a request for a few seconds
+            error = f"{type(e).__name__}: {e}"
+            time.sleep(2 * (attempt + 1))
+    else:
         if not LAST_GOOD.exists():
             raise RuntimeError(
-                "Yahoo Finance didn't respond. Check your internet connection, wait "
-                "a minute, then press Refresh."
+                "The market data sources didn't respond after 3 tries. Check your "
+                f"internet connection, wait a minute, then press Refresh. ({error})"
             )
         when = datetime.fromtimestamp(LAST_GOOD.stat().st_mtime)
         return pd.read_csv(LAST_GOOD), (
-            f"Yahoo Finance didn't respond, so prices from {when:%b %d at %I:%M %p} "
-            "are shown. Press Refresh to try again."
+            f"The market data sources didn't respond, so prices from "
+            f"{when:%b %d at %I:%M %p} are shown. Press Refresh to try again. ({error})"
         )
 
     ranked = ranked.sort_values("Market Cap", ascending=False)
